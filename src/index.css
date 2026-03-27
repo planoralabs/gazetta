@@ -5,6 +5,9 @@
   --font-serif: "EB Garamond", serif;
   --font-headline: "Playfair Display", serif;
   --font-meta: "Inter", sans-serif;
+  --color-red-500: #de3b3b;
+  --color-red-600: #c93535;
+  --color-red-700: #b52f2f;
 }
 
 :root {
@@ -85,4 +88,18 @@ body {
   50% {
     transform: translateX(300%);
   }
+}
+/* Custom Scrollbar for selection lists */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.4);
 }

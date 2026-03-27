@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useContext, createContext } from 'react';
+import React, { useState, useEffect, useContext, createContext, useCallback } from 'react';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
-import {
-  Settings, Sparkles, RefreshCw, Newspaper, TrendingUp, Calendar, Share2, Bookmark, X, ArrowLeft, User, Globe, Zap, Moon, Sun, BookOpen
-} from 'lucide-react';
+import { Settings, Sparkles, RefreshCw, Newspaper, TrendingUp, Calendar, Share2, Bookmark, X, ArrowLeft, User, Globe, Zap, Moon, Sun, BookOpen, LogIn, LogOut, Search, Award, ChevronDown } from 'lucide-react';
+import { auth, googleProvider, db } from './lib/firebase';
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -10,6 +11,13 @@ import { twMerge } from 'tailwind-merge';
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
+
+const decodeEntities = (text) => {
+  if (!text) return "";
+  const textArea = document.createElement('textarea');
+  textArea.innerHTML = text;
+  return textArea.value;
+};
 
 const cleanHTMLContent = (htmlString) => {
   if (!htmlString) return "Conteúdo não disponível.";
@@ -29,32 +37,68 @@ const cleanHTMLContent = (htmlString) => {
 };
 
 const GLOBAL_SOURCES = [
-  { name: "G1 Economia", url: "https://g1.globo.com/rss/g1/economia/", category: "Brasil" },
-  { name: "Tecnoblog", url: "https://tecnoblog.net/feed/", category: "Tecnologia" },
-  { name: "Canaltech", url: "https://canaltech.com.br/rss/", category: "Tecnologia" },
-  { name: "Jovem Nerd", url: "https://jovemnerd.com.br/feed/", category: "Geek" },
-  { name: "Folha de S.Paulo", url: "https://feeds.folha.uol.com.br/emcimadhora/rss091.xml", category: "Brasil" },
-  { name: "BBC Brasil", url: "https://feeds.bbci.co.uk/portuguese/rss.xml", category: "Mundo" },
-  { name: "UOL Tecnologia", url: "https://rss.uol.com.br/feed/tecnologia.xml", category: "Tecnologia" },
-  { name: "Estadão", url: "https://www.estadao.com.br/arc/outboundfeeds/rss/categoria/brasil/", category: "Brasil" },
-  { name: "Valor", url: "https://valor.globo.com/rss/valor/", category: "Negócios" },
-  { name: "Olhar Digital", url: "https://olhardigital.com.br/feed/", category: "Tecnologia" },
-  { name: "Exame", url: "https://exame.com/feed/", category: "Negócios" },
-  { name: "Gizmodo BR", url: "https://gizmodo.uol.com.br/feed/", category: "Geek" },
-  { name: "MacMagazine", url: "https://macmagazine.com.br/feed/", category: "Tecnologia" },
-  { name: "TechCrunch", url: "https://techcrunch.com/feed/", category: "Tecnologia" },
-  { name: "The Verge", url: "https://www.theverge.com/rss/index.xml", category: "Tecnologia" },
-  { name: "Wired", url: "https://www.wired.com/feed/rss", category: "Tecnologia" },
-  { name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index", category: "Tecnologia" },
-  { name: "BBC News World", url: "http://feeds.bbci.co.uk/news/world/rss.xml", category: "Mundo" },
-  { name: "NY Post Tech", url: "https://nypost.com/tech/feed/", category: "Mundo" },
-  { name: "The Guardian Tech", url: "https://www.theguardian.com/uk/technology/rss", category: "Tecnologia" },
-  { name: "Reuters World", url: "https://www.reutersagency.com/feed/?best-topics=world-news&post_type=best", category: "Mundo" },
-  { name: "Mashable", url: "https://mashable.com/feeds/rss/all", category: "Geek" },
-  { name: "Engadget", url: "https://www.engadget.com/rss.xml", category: "Tecnologia" },
-  { name: "Forbes Tech", url: "https://www.forbes.com/innovation/feed/", category: "Negócios" },
-  { name: "Reuters Tech", url: "https://www.reutersagency.com/feed/?best-topics=technology&post_type=best", category: "Tecnologia" }
+  // BRASIL (Popular)
+  { id: "g1_eco", name: "G1 Economia", url: "https://g1.globo.com/rss/g1/economia/", category: "Brasil", popular: true },
+  { id: 'folha_mundo', name: 'Folha - Mundo', url: 'https://feeds.folha.uol.com.br/mundo/rss091.xml', category: 'Mundo', popular: true },
+  { id: 'estadao_br', name: 'Estadão', url: 'https://www.estadao.com.br/arc/outboundfeeds/rss/categoria/brasil/', category: 'Brasil', popular: true },
+  { id: "valor", name: "Valor", url: "https://valor.globo.com/rss/valor/", category: "Brasil", popular: true },
+  { id: "uol_noticias", name: "UOL Notícias", url: "https://rss.uol.com.br/feed/noticias.xml", category: "Brasil", popular: true },
+  { id: "cnn_br", name: "CNN Brasil", url: "https://www.cnnbrasil.com.br/feed/", category: "Brasil", popular: true },
+  { id: "nexo", name: "Nexo Jornal", url: "https://www.nexojornal.com.br/rss/", category: "Brasil" },
+  { id: "poder360", name: "Poder360", url: "https://www.poder360.com.br/feed/", category: "Brasil" },
+  { id: "metropoles", name: "Metrópoles", url: "https://www.metropoles.com.br/feed", category: "Brasil" },
+  { id: "r7", name: "R7 Notícias", url: "https://noticias.r7.com/feed.xml", category: "Brasil" },
+  
+  // TECNOLOGIA (Popular)
+  { id: "tecnoblog", name: "Tecnoblog", url: "https://tecnoblog.net/feed/", category: "Tecnologia", popular: true },
+  { id: "canaltech", name: "Canaltech", url: "https://canaltech.com.br/rss/", category: "Tecnologia", popular: true },
+  { id: "meio_bit", name: "Meio Bit", url: "https://meiobit.com/feed/", category: "Tecnologia", popular: true },
+  { id: "macmagazine", name: "MacMagazine", url: "https://macmagazine.com.br/feed/", category: "Tecnologia", popular: true },
+  { id: "gizmodo_br", name: "Gizmodo Brasil", url: "https://gizmodo.uol.com.br/feed/", category: "Tecnologia", popular: true },
+  { id: "olhar_digital", name: "Olhar Digital", url: "https://olhardigital.com.br/feed/", category: "Tecnologia" },
+  { id: "techcrunch", name: "TechCrunch", url: "https://techcrunch.com/feed/", category: "Tecnologia", popular: true },
+  { id: "the_verge", name: "The Verge", url: "https://www.theverge.com/rss/index.xml", category: "Tecnologia", popular: true },
+  { id: "wired", name: "Wired", url: "https://www.wired.com/feed/rss", category: "Tecnologia", popular: true },
+  { id: "arstechnica", name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index", category: "Tecnologia", popular: true },
+  { id: "engadget", name: "Engadget", url: "https://www.engadget.com/rss.xml", category: "Tecnologia" },
+  
+  // MUNDO (Popular)
+  { id: "bbc_br", name: "BBC Brasil", url: "https://feeds.bbci.co.uk/portuguese/rss.xml", category: "Mundo", popular: true },
+  { id: "reuters_world", name: "Reuters World", url: "https://www.reutersagency.com/feed/?best-topics=world-news&post_type=best", category: "Mundo", popular: true },
+  { id: "nytimes", name: "NY Times", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", category: "Mundo", popular: true },
+  { id: "the_guardian", name: "The Guardian", url: "https://www.theguardian.com/world/rss", category: "Mundo", popular: true },
+  { id: "al_jazeera", name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.rss", category: "Mundo" },
+  { id: "dw_br", name: "DW Brasil", url: "https://rss.dw.com/rdf/rss-br-top", category: "Mundo" },
+  
+  // NEGÓCIOS / ECONOMIA
+  { id: "exame", name: "Exame", url: "https://exame.com/feed/", category: "Negócios", popular: true },
+  { id: "bloomberg", name: "Bloomberg", url: "https://www.bloomberg.com/politics/feeds/site.xml", category: "Negócios" },
+  { id: "forbes_br", name: "Forbes Brasil", url: "https://forbes.com.br/feed/", category: "Negócios" },
+  { id: "infomoney", name: "InfoMoney", url: "https://www.infomoney.com.br/feed/", category: "Negócios" },
+  { id: "money_times", name: "Money Times", url: "https://www.moneytimes.com.br/feed/", category: "Negócios" },
+  { id: "brazil_journal", name: "Brazil Journal", url: "https://braziljournal.com/feed/", category: "Negócios" },
+  
+  // GEEK / CULTURA
+  { id: "jovem_nerd", name: "Jovem Nerd", url: "https://jovemnerd.com.br/feed/", category: "Geek", popular: true },
+  { id: "omelete", name: "Omelete", url: "https://www.omelete.com.br/rss", category: "Geek" },
+  { id: "ign_br", name: "IGN Brasil", url: "https://br.ign.com/feed.xml", category: "Geek" },
+  { id: "techtudo", name: "TechTudo", url: "https://home/globo/techtudo/rss/feed.xml", category: "Geek" },
+  { id: "adorocinema", name: "AdoroCinema", url: "http://www.adorocinema.com/rss/noticias.xml", category: "Geek" },
+  
+  // CIÊNCIA / SAÚDE
+  { id: "natgeo", name: "National Geographic", url: "https://www.nationalgeographic.com/index.rss", category: "Ciência" },
+  { id: "nasa", name: "NASA News", url: "https://www.nasa.gov/rss/dyn/breaking_news.rss", category: "Ciência" },
+  { id: "sciam", name: "Scientific American", url: "http://rss.sciam.com/ScientificAmerican-Global", category: "Ciência" },
+  { id: "drauzio", name: "Drauzio Varella", url: "https://drauziovarella.uol.com.br/feed/", category: "Saúde" },
+  { id: "gazeta_povo", name: "Gazeta do Povo", url: "https://www.gazetadopovo.com.br/feed/rss/mundo.xml", category: "Brasil" },
+  { id: "brasil_de_fato", name: "Brasil de Fato", url: "https://www.brasildefato.com.br/rss2.xml", category: "Brasil" },
+  { id: "elpais_br", name: "El País Brasil", url: "https://brasil.elpais.com/rss/brasil/portada.xml", category: "Brasil" },
+  { id: "france24", name: "France 24", url: "https://www.france24.com/en/rss", category: "Mundo" },
+  { id: "variety", name: "Variety", url: "https://variety.com/feed/", category: "Geek" },
+  { id: "rolling_stone", name: "Rolling Stone", url: "https://rollingstone.uol.com.br/rss/noticias/", category: "Geek" }
 ];
+
+const AD_KEYWORDS = ['oferta', 'promoção', 'desconto', 'cupom', 'barato', 'preço', 'comprar', 'imperdível', 'liquidação'];
 
 const SettingsContext = createContext({});
 const useSettings = () => useContext(SettingsContext);
@@ -188,7 +232,8 @@ const ArticleView = ({ news, lastUpdate }) => {
 // Componente Principal da Lista
 const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, curateNews, isLoadingMore }) => {
   const navigate = useNavigate();
-  const { theme, toggleBookmark, isBookmarked, handleShare, interests, currentCategory, setCurrentCategory, toggleTheme, darkMode, bookmarks, showBookmarks, setShowBookmarks } = useSettings();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const { theme, toggleBookmark, isBookmarked, handleShare, interests, currentCategory, setCurrentCategory, toggleTheme, darkMode, bookmarks, showBookmarks, setShowBookmarks, user, login, logout, collectibles } = useSettings();
 
   const openArticle = (articleId) => {
     navigate(`/article/${articleId}`);
@@ -222,6 +267,63 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
               <Bookmark className={cn("w-3 h-3", showBookmarks ? "fill-current" : "")} />
               Meus Arquivos ({bookmarks.length})
             </button>
+            <span>|</span>
+            {user ? (
+              <div className="relative">
+                <button 
+                  onClick={() => setShowUserMenu(!showUserMenu)} 
+                  className={cn("flex items-center gap-2 hover:bg-black/5 px-2 py-1 rounded transition-colors", theme.text)}
+                >
+                  {user.photoURL ? <img src={user.photoURL} className="w-5 h-5 rounded-full" /> : <User className="w-3 h-3" />}
+                  <span className="hidden sm:inline">Olá, {user.displayName?.split(' ')[0]}</span>
+                  <ChevronDown className={cn("w-3 h-3 transition-transform", showUserMenu && "rotate-180")} />
+                </button>
+                
+                <AnimatePresence>
+                  {showUserMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }} 
+                        animate={{ opacity: 1, y: 0, scale: 1 }} 
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className={cn("absolute right-0 mt-2 w-56 border-2 p-2 z-50 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]", theme.bg, theme.border)}
+                      >
+                        <div className="px-3 py-3 border-b-2 mb-2 flex items-center gap-3">
+                          {user.photoURL && <img src={user.photoURL} className="w-8 h-8 rounded-full border-2 border-black/10" />}
+                          <div className="overflow-hidden">
+                            <p className="text-[10px] font-black truncate">{user.displayName}</p>
+                            <p className="text-[8px] opacity-50 truncate uppercase font-bold tracking-tighter">{user.email}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <button onClick={() => setShowUserMenu(false)} className="w-full flex items-center justify-between px-3 py-2 text-[10px] uppercase font-black hover:bg-black/5 text-left transition-colors group">
+                            <span className="flex items-center gap-2"><Award className="w-4 h-4 py-0.5" /> Meus Selos</span>
+                            <span className={cn("bg-black text-white px-1.5 py-0.5 rounded text-[8px]", theme.bgAccent)}>{collectibles?.length || 0}</span>
+                          </button>
+                          
+                          <button onClick={() => { setShowUserMenu(false); setShowSettings(true); }} className="w-full flex items-center gap-2 px-3 py-2 text-[10px] uppercase font-black hover:bg-black/5 text-left transition-colors">
+                            <Settings className="w-4 h-4 py-0.5" /> Configurar Jornal
+                          </button>
+
+                          <div className={cn("h-px my-2 mx-2", darkMode ? "bg-white/10" : "bg-black/10")} />
+
+                          <button onClick={() => { setShowUserMenu(false); logout(); }} className={cn("w-full flex items-center gap-2 px-3 py-2 text-[10px] uppercase font-black hover:bg-red-50 text-left transition-colors", theme.accent)}>
+                            <LogOut className="w-4 h-4 py-0.5" /> Sair da Gazetta
+                          </button>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <button onClick={login} className={cn("flex items-center gap-2 hover:underline transition-colors", theme.accent)}>
+                <LogIn className="w-3 h-3" />
+                <span>Login</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -268,10 +370,10 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => setShowSettings(true)} className="flex items-center gap-2 text-xs uppercase font-black hover:scale-105 transition-transform">
-              <Settings className="w-4 h-4" /> Personalizar Temas
+              <Settings className="w-4 h-4" /> Configurar Jornal
             </button>
-            <button onClick={curateNews} className="flex items-center gap-2 text-xs uppercase font-black hover:scale-105 transition-transform" disabled={isLoading}>
-              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} /> Gerar novas notícias
+            <button onClick={() => curateNews(true)} className="flex items-center gap-2 text-xs uppercase font-black hover:scale-105 transition-transform" disabled={isLoading}>
+              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} /> Sincronizar Agora
             </button>
           </div>
         </div>
@@ -337,7 +439,7 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                 ))}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-16">
-                  {displayedNews.filter(n => !n.featured).slice(0, 20).map((item, idx) => (
+                  {displayedNews.filter(n => !n.featured).map((item, idx) => (
                     <article
                       key={item.id}
                       className="flex flex-col group cursor-pointer"
@@ -431,8 +533,41 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
   );
 };
 
+const EditorSeal = ({ className }) => (
+  <svg 
+    viewBox="0 0 100 100" 
+    className={className} 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Fundo do selo */}
+    <rect x="10" y="10" width="80" height="80" fill="currentColor" fillOpacity="0.05" />
+    
+    {/* Bordas serrilhadas (perfuração) */}
+    <path 
+      d="M10 10 L15 5 L20 10 L25 5 L30 10 L35 5 L40 10 L45 5 L50 10 L55 5 L60 10 L65 5 L70 10 L75 5 L80 10 L85 5 L90 10 L95 15 L90 20 L95 25 L90 30 L95 35 L90 40 L95 45 L90 50 L95 55 L90 60 L95 65 L90 70 L95 75 L90 80 L95 85 L90 90 L85 95 L80 90 L75 95 L70 90 L65 95 L60 90 L55 95 L50 90 L45 95 L40 90 L35 95 L30 90 L25 95 L20 90 L15 95 L10 90 L5 85 L10 80 L5 75 L10 70 L5 65 L10 60 L5 55 L10 50 L5 45 L10 40 L5 35 L10 30 L5 25 L10 20 L5 15 Z" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinejoin="round" 
+    />
+    
+    {/* Figura abstrata interna */}
+    <path 
+      d="M30 40 Q50 20 70 40 T30 60 T70 80" 
+      stroke="currentColor" 
+      strokeWidth="3" 
+      strokeLinecap="round" 
+      opacity="0.6"
+    />
+    
+    {/* Carimbo de cancelamento (ondas) */}
+    <path d="M5 25 Q15 20 25 25 T45 25" stroke="currentColor" strokeWidth="1" opacity="0.3" />
+    <path d="M5 35 Q15 30 25 35 T45 35" stroke="currentColor" strokeWidth="1" opacity="0.3" />
+  </svg>
+);
+
 const AppContent = () => {
-  const { theme, darkMode, showSettings, setShowSettings, toggleInterest, interests, curateNews, isLoading, news, lastUpdate, isLoadingMore } = useSettings();
+  const { theme, darkMode, showSettings, setShowSettings, toggleInterest, interests, curateNews, isLoading, news, lastUpdate, isLoadingMore, selectedSourceIds, toggleSource } = useSettings();
 
   return (
     <div className={cn("min-h-screen font-serif relative overflow-x-hidden pb-20 transition-colors duration-300", theme.bg, theme.text, theme.selection)}>
@@ -468,19 +603,59 @@ const AppContent = () => {
             <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }} className={cn("border-4 p-8 md:p-12 max-w-2xl w-full relative z-[2001] shadow-[24px_24px_0px_0px_rgba(0,0,0,1)]", theme.bg, theme.border)}>
               <button onClick={() => setShowSettings(false)} className="absolute top-6 right-6 hover:rotate-90 transition-transform"><X className="w-8 h-8" /></button>
               <div className="flex items-center gap-4 mb-4">
-                <Sparkles className="w-10 h-10" />
-                <h2 className="newspaper-title text-5xl">Curadoria IA</h2>
+                <EditorSeal className="w-20 h-20" />
+                <h2 className="font-serif text-5xl font-bold italic border-b-2 border-black/10 pb-2 mb-2">Minha Gazetta</h2>
               </div>
-              <p className={cn("mb-10 italic", theme.muted)}>Selecione os focos de análise para o algoritmo de consenso global. Ficam salvos no seu painel.</p>
-              <div className="flex flex-wrap gap-2.5 mb-12">
+              <p className={cn("mb-6 italic", theme.muted)}>Selecione os focos de análise e as fontes que compõem sua edição diária.</p>
+              
+              <h3 className="text-xs font-black uppercase bg-black text-white px-2 py-1 mb-4 inline-block">Interesses</h3>
+              <div className="flex flex-wrap gap-2 mb-8">
                 {[
                   "Inteligência Artificial", "Cultura Geek", "Economia Digital",
                   "Tecnologia", "Política Global", "Saúde", "Ciência"
                 ].map(th => (
-                  <button key={th} onClick={() => toggleInterest(th)} className={cn("px-4 py-2 text-[10px] font-black uppercase border-2 transition-all", interests.includes(th) ? theme.invertedBg : cn("border-black/20 hover:border-black", darkMode && "border-white/20 hover:border-white", theme.text))}>{th}</button>
+                  <button key={th} onClick={() => toggleInterest(th)} className={cn("px-4 py-2 text-[10px] font-black uppercase border-2 transition-all border-neutral-300", interests.includes(th) ? "border-black text-red-600 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" : cn("border-black/20 hover:border-black", darkMode && "border-white/20 hover:border-white", theme.text))}>{th}</button>
                 ))}
               </div>
-              <button onClick={() => { setShowSettings(false); curateNews(); }} className={cn("w-full py-5 font-black uppercase tracking-[0.4em] shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]", theme.invertedBg)}>Sincronizar Fontes Mundiais</button>
+
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-black uppercase bg-black text-white px-2 py-1 inline-block">Minhas Fontes ({selectedSourceIds.length})</h3>
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 opacity-40" />
+                  <input 
+                    type="text" 
+                    placeholder="Filtrar fontes..." 
+                    className="pl-7 pr-2 py-1 text-[10px] border-b border-black/20 focus:border-black outline-none bg-transparent"
+                    onChange={(e) => {
+                      const term = e.target.value.toLowerCase();
+                      const items = document.querySelectorAll('.source-btn');
+                      items.forEach(item => {
+                        const name = item.dataset.name.toLowerCase();
+                        item.style.display = name.includes(term) ? 'block' : 'none';
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 mb-10 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar border-y py-4">
+                {GLOBAL_SOURCES.map(source => (
+                  <button 
+                    key={source.id} 
+                    data-name={source.name}
+                    onClick={() => toggleSource(source.id)} 
+                    className={cn(
+                      "source-btn text-[10px] text-left p-2 border border-neutral-300 transition-all", 
+                      selectedSourceIds.includes(source.id) ? "border-black text-red-600 font-bold shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]" : "opacity-60 hover:opacity-100"
+                    )}
+                  >
+                    <span className="block opacity-40 text-[8px] uppercase font-black">{source.category}</span>
+                    {source.name}
+                  </button>
+                ))}
+              </div>
+
+              <button onClick={() => { setShowSettings(false); curateNews(true); }} className={cn("w-full py-5 font-black uppercase tracking-[0.4em] shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] transition-all", theme.invertedBg)}>Sincronizar Edição Global</button>
             </motion.div>
           </div>
         )}
@@ -490,10 +665,40 @@ const AppContent = () => {
 };
 
 // Componente Wrapper / Provider
+const analyzeTrends = (allArticles) => {
+  const termMap = {};
+  const commonStopWords = ['da', 'do', 'em', 'para', 'com', 'no', 'na', 'um', 'uma', 'os', 'as', 'e', 'o', 'a', 'de'];
+
+  allArticles.forEach(art => {
+    const words = art.title.toLowerCase().split(/\W+/);
+    words.forEach(word => {
+      if (word.length > 3 && !commonStopWords.includes(word)) {
+        termMap[word] = (termMap[word] || 0) + 1;
+      }
+    });
+  });
+
+  return allArticles.map(art => {
+    const words = art.title.toLowerCase().split(/\W+/);
+    let score = 0;
+    words.forEach(word => {
+      if (termMap[word] > 1) score += termMap[word];
+    });
+
+    return {
+      ...art,
+      relevance: Math.min(100, 70 + score),
+      isTrending: score > 15
+    };
+  });
+};
+
 const App = () => {
   const [interests, setInterests] = useState(() => JSON.parse(localStorage.getItem('gazetta_prefs')) || ["Inteligência Artificial", "Cultura Geek", "Economia Digital"]);
+  const [selectedSourceIds, setSelectedSourceIds] = useState(() => JSON.parse(localStorage.getItem('gazetta_sources')) || GLOBAL_SOURCES.filter(s => s.popular).map(s => s.id));
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('gazetta_theme') === 'dark');
   const [bookmarks, setBookmarks] = useState(() => JSON.parse(localStorage.getItem('gazetta_bookmarks')) || []);
+  const [collectibles, setCollectibles] = useState(() => JSON.parse(localStorage.getItem('gazetta_stamps')) || []);
 
   const [news, setNews] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -503,12 +708,79 @@ const App = () => {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [loadedSourcesCount, setLoadedSourcesCount] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [user, setUser] = useState(null);
 
-  useEffect(() => { localStorage.setItem('gazetta_theme', darkMode ? 'dark' : 'light'); }, [darkMode]);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        // Carregar preferências do Firestore
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          if (data.interests) setInterests(data.interests);
+          if (data.sources) setSelectedSourceIds(data.sources);
+          if (data.collectibles) setCollectibles(data.collectibles);
+          if (data.darkMode !== undefined) setDarkMode(data.darkMode);
+        } else {
+          // Criar perfil básico se não existir
+          await setDoc(doc(db, 'users', currentUser.uid), {
+            displayName: currentUser.displayName,
+            email: currentUser.email,
+            photoURL: currentUser.photoURL,
+            lastLogin: new Date(),
+            sources: selectedSourceIds,
+            interests: interests
+          }, { merge: true });
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const login = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error("Erro no login:", error);
+    }
+  };
+
+  const logout = () => signOut(auth);
+
+  useEffect(() => { 
+    localStorage.setItem('gazetta_theme', darkMode ? 'dark' : 'light'); 
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid), { darkMode }).catch(e => console.error(e));
+    }
+  }, [darkMode, user]);
   useEffect(() => { localStorage.setItem('gazetta_bookmarks', JSON.stringify(bookmarks)); }, [bookmarks]);
   useEffect(() => { localStorage.setItem('gazetta_prefs', JSON.stringify(interests)); }, [interests]);
+  useEffect(() => { localStorage.setItem('gazetta_sources', JSON.stringify(selectedSourceIds)); }, [selectedSourceIds]);
+
+  const toggleSource = (id) => {
+    if (selectedSourceIds.includes(id)) {
+      setSelectedSourceIds(selectedSourceIds.filter(s => s !== id));
+    } else {
+      setSelectedSourceIds([...selectedSourceIds, id]);
+    }
+  };
 
   const toggleTheme = () => setDarkMode(!darkMode);
+
+  const collectStamp = async (stampId) => {
+    if (collectibles.includes(stampId)) return;
+    const newList = [...collectibles, stampId];
+    setCollectibles(newList);
+    localStorage.setItem('gazetta_stamps', JSON.stringify(newList));
+    
+    if (user) {
+      await updateDoc(doc(db, 'users', user.uid), {
+        collectibles: arrayUnion(stampId),
+        lastStampAt: serverTimestamp()
+      });
+    }
+  };
 
   const toggleBookmark = (article) => {
     if (bookmarks.find(b => b.id === article.id)) {
@@ -550,48 +822,39 @@ const App = () => {
   };
 
   // Funções de Load
-  const analyzeTrends = (allArticles) => {
-    const termMap = {};
-    const commonStopWords = ['da', 'do', 'em', 'para', 'com', 'no', 'na', 'um', 'uma', 'os', 'as', 'e', 'o', 'a', 'de'];
 
-    allArticles.forEach(art => {
-      const words = art.title.toLowerCase().split(/\W+/);
-      words.forEach(word => {
-        if (word.length > 3 && !commonStopWords.includes(word)) {
-          termMap[word] = (termMap[word] || 0) + 1;
-        }
-      });
-    });
 
-    return allArticles.map(art => {
-      const words = art.title.toLowerCase().split(/\W+/);
-      let score = 0;
-      words.forEach(word => {
-        if (termMap[word] > 1) score += termMap[word];
-      });
+  const curateNews = useCallback(async (forceRefresh = false) => {
+    // 1. Verificar Cache
+    if (!forceRefresh) {
+      const cached = localStorage.getItem('gazetta_news_cache');
+      const cacheTime = localStorage.getItem('gazetta_news_cache_time');
+      if (cached && cacheTime && (Date.now() - parseInt(cacheTime) < 20 * 60 * 1000)) {
+        setNews(JSON.parse(cached));
+        setLastUpdate(new Date(parseInt(cacheTime)));
+        return;
+      }
+    }
 
-      return {
-        ...art,
-        relevance: Math.min(100, 70 + score),
-        isTrending: score > 15
-      };
-    });
-  };
-
-  const curateNews = async () => {
     setIsLoading(true);
     try {
-      const selectedSources = [...GLOBAL_SOURCES].sort(() => 0.5 - Math.random()).slice(0, 8);
+      const activeSources = GLOBAL_SOURCES.filter(s => selectedSourceIds.includes(s.id));
       const allResults = [];
 
-      for (let i = 0; i < selectedSources.length; i += 2) {
-        const batch = selectedSources.slice(i, i + 2);
+      // Paralelismo limitado para evitar bloqueios
+      for (let i = 0; i < activeSources.length; i += 3) {
+        const batch = activeSources.slice(i, i + 3);
         const batchResults = await Promise.all(
           batch.map(async (source) => {
             try {
               const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.url)}`);
-              const data = await response.json();
+              
+              if (response.status === 429) {
+                console.warn(`Limitado pelo servidor (429) ao acessar: ${source.name}`);
+                return [];
+              }
 
+              const data = await response.json();
               if (data.status !== 'ok') return [];
 
               return data.items.map(item => {
@@ -617,11 +880,11 @@ const App = () => {
 
                 return {
                   id: articleId,
-                  title: item.title,
-                  summary: (item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "...",
+                  title: decodeEntities(item.title),
+                  summary: decodeEntities((item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "..."),
                   content: cleanHTMLContent(item.content || item.description),
                   category: source.category,
-                  author: item.author || source.name,
+                  author: decodeEntities(item.author || source.name),
                   source: source.name,
                   time: new Date(item.pubDate || new Date()).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
                   date: new Date(item.pubDate || new Date()).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-'),
@@ -635,12 +898,11 @@ const App = () => {
           })
         );
         allResults.push(...batchResults);
-        if (i + 2 < selectedSources.length) await new Promise(r => setTimeout(r, 1500));
+        if (i + 3 < activeSources.length) await new Promise(r => setTimeout(r, 2500));
       }
 
       let flatNews = allResults.flat();
 
-      const AD_KEYWORDS = ['oferta', 'promoção', 'desconto', 'cupom', 'barato', 'preço', 'comprar', 'imperdível', 'liquidação'];
       flatNews = flatNews.filter(art => {
         const contentToCheck = (art.title + " " + art.summary).toLowerCase();
         return !AD_KEYWORDS.some(keyword => contentToCheck.includes(keyword));
@@ -671,13 +933,15 @@ const App = () => {
 
       setNews(analyzedNews);
       setLastUpdate(new Date());
+      localStorage.setItem('gazetta_news_cache', JSON.stringify(analyzedNews));
+      localStorage.setItem('gazetta_news_cache_time', Date.now().toString());
     } catch (error) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedSourceIds]);
 
-  const loadMoreNews = async () => {
+  const loadMoreNews = useCallback(async () => {
     if (isLoadingMore || loadedSourcesCount >= GLOBAL_SOURCES.length) return;
 
     setIsLoadingMore(true);
@@ -715,11 +979,11 @@ const App = () => {
 
             return {
               id: generateId(item.link || item.guid || Math.random().toString()),
-              title: item.title,
-              summary: (item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "...",
+              title: decodeEntities(item.title),
+              summary: decodeEntities((item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "..."),
               content: cleanHTMLContent(item.content || item.description),
               category: source.category,
-              author: item.author || source.name,
+              author: decodeEntities(item.author || source.name),
               source: source.name,
               time: new Date(item.pubDate || new Date()).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
               date: new Date(item.pubDate || new Date()).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-'),
@@ -735,7 +999,6 @@ const App = () => {
       }
 
       let flatNews = allResults;
-      const AD_KEYWORDS = ['oferta', 'promoção', 'desconto', 'cupom', 'barato', 'preço', 'comprar', 'imperdível', 'liquidação'];
       flatNews = flatNews.filter(art => !AD_KEYWORDS.some(keyword => (art.title + " " + art.summary).toLowerCase().includes(keyword)));
 
       const existingIds = new Set(news.map(n => n.id));
@@ -751,7 +1014,7 @@ const App = () => {
     } finally {
       setIsLoadingMore(false);
     }
-  };
+  }, [isLoadingMore, loadedSourcesCount, news]);
 
   const toggleInterest = (theme) => {
     if (interests.includes(theme)) {
@@ -781,7 +1044,7 @@ const App = () => {
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [isLoadingMore, loadedSourcesCount, showBookmarks]);
+  }, [isLoadingMore, loadedSourcesCount, showBookmarks, loadMoreNews]);
 
   return (
     <SettingsContext.Provider value={{
@@ -791,7 +1054,10 @@ const App = () => {
       handleShare,
       showSettings, setShowSettings,
       currentCategory, setCurrentCategory,
-      news, curateNews, isLoading, isLoadingMore, lastUpdate
+      news, curateNews, isLoading, isLoadingMore, lastUpdate,
+      user, login, logout,
+      selectedSourceIds, toggleSource,
+      collectibles, collectStamp
     }}>
       <AppContent />
     </SettingsContext.Provider>

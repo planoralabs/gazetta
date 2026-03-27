@@ -13,6 +13,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "autoprefixer": "^10.4.24",
     "clsx": "^2.1.1",
+    "firebase": "^12.11.0",
     "framer-motion": "^12.31.2",
     "lucide-react": "^0.563.0",
     "postcss": "^8.5.6",
