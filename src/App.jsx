@@ -16,7 +16,35 @@ const decodeEntities = (text) => {
   if (!text) return "";
   const textArea = document.createElement('textarea');
   textArea.innerHTML = text;
-  return textArea.value;
+  let decoded = textArea.value;
+  
+  // Garante que o texto está em UTF-8 corretamente decodificado
+  try {
+    return decodeURIComponent(escape(decoded));
+  } catch(e) {
+    return decoded;
+  }
+};
+
+const fixEncoding = (text) => {
+  if (!text) return "";
+  // Resolve problemas comuns de caracteres corrompidos vindos de RSS antigos
+  const map = {
+    'Ã¡': 'á', 'Ã ': 'à', 'Ã¢': 'â', 'Ã£': 'ã', 'Ã¤': 'ä',
+    'Ã©': 'é', 'Ã¨': 'è', 'Ãª': 'ê', 'Ã«': 'ë',
+    'Ã\xad': 'í', 'Ã¬': 'ì', 'Ã®': 'î', 'Ã¯': 'ï',
+    'Ã³': 'ó', 'Ã²': 'ò', 'Ã´': 'ô', 'Ãµ': 'õ', 'Ã¶': 'ö',
+    'Ãº': 'ú', 'Ã¹': 'ù', 'Ã»': 'û', 'Ã¼': 'ü',
+    'Ã§': 'ç', 'Ã\x81': 'Á', 'Ã\x80': 'À', 'Ã\x82': 'Â', 'Ã\x83': 'Ã',
+    'Ã\x89': 'É', 'Ã\x8a': 'Ê', 'Ã\x8d': 'Í', 'Ã\x93': 'Ó', 'Ã\x94': 'Ô',
+    'Ã\x95': 'Õ', 'Ã\x9a': 'Ú', 'Ã\x87': 'Ç', 'â\x80\x9c': '"', 'â\x80\x9d': '"',
+    'â\x80\x98': "'", 'â\x80\x99': "'", 'â\x80\x94': '—', 'â\x80\x93': '–'
+  };
+  let fixed = text;
+  Object.keys(map).forEach(key => {
+    fixed = fixed.replace(new RegExp(key, 'g'), map[key]);
+  });
+  return fixed;
 };
 
 const cleanHTMLContent = (htmlString) => {
@@ -928,9 +956,9 @@ const App = () => {
 
                 return {
                   id: articleId,
-                  title: decodeEntities(item.title),
-                  summary: decodeEntities((item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "..."),
-                  content: cleanHTMLContent(item.content || item.description),
+                  title: fixEncoding(decodeEntities(item.title)),
+                  summary: fixEncoding(decodeEntities((item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "...")),
+                  content: fixEncoding(cleanHTMLContent(item.content || item.description)),
                   category: source.category,
                   author: decodeEntities(item.author || source.name),
                   source: source.name,
@@ -1034,9 +1062,9 @@ const App = () => {
 
             return {
               id: generateId(item.link || item.guid || Math.random().toString()),
-              title: decodeEntities(item.title),
-              summary: decodeEntities((item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "..."),
-              content: cleanHTMLContent(item.content || item.description),
+              title: fixEncoding(decodeEntities(item.title)),
+              summary: fixEncoding(decodeEntities((item.description || "").replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().slice(0, 180) + "...")),
+              content: fixEncoding(cleanHTMLContent(item.content || item.description)),
               category: source.category,
               author: decodeEntities(item.author || source.name),
               source: source.name,
