@@ -90,15 +90,35 @@ const GLOBAL_SOURCES = [
   { id: "nasa", name: "NASA News", url: "https://www.nasa.gov/rss/dyn/breaking_news.rss", category: "Ciência" },
   { id: "sciam", name: "Scientific American", url: "http://rss.sciam.com/ScientificAmerican-Global", category: "Ciência" },
   { id: "drauzio", name: "Drauzio Varella", url: "https://drauziovarella.uol.com.br/feed/", category: "Saúde" },
-  { id: "gazeta_povo", name: "Gazeta do Povo", url: "https://www.gazetadopovo.com.br/feed/rss/mundo.xml", category: "Brasil" },
-  { id: "brasil_de_fato", name: "Brasil de Fato", url: "https://www.brasildefato.com.br/rss2.xml", category: "Brasil" },
-  { id: "elpais_br", name: "El País Brasil", url: "https://brasil.elpais.com/rss/brasil/portada.xml", category: "Brasil" },
-  { id: "france24", name: "France 24", url: "https://www.france24.com/en/rss", category: "Mundo" },
-  { id: "variety", name: "Variety", url: "https://variety.com/feed/", category: "Geek" },
-  { id: "rolling_stone", name: "Rolling Stone", url: "https://rollingstone.uol.com.br/rss/noticias/", category: "Geek" }
+  { id: "variety", name: "Variety", url: "https://variety.com/feed/", category: "Cultura" },
+  { id: "rolling_stone", name: "Rolling Stone", url: "https://rollingstone.uol.com.br/rss/noticias/", category: "Cultura" },
+  
+  // ESPORTES
+  { id: "ge_top", name: "GE - Globo Esporte", url: "https://ge.globo.com/rss/ge/", category: "Esportes", popular: true },
+  { id: "espn", name: "ESPN Brasil", url: "https://www.espn.com.br/rss/noticias", category: "Esportes", popular: true },
+  { id: "gazeta_esportiva", name: "Gazeta Esportiva", url: "https://www.gazetaesportiva.com/feed/", category: "Esportes" },
+
+  // ESTILO DE VIDA (Lifestyle/Beleza)
+  { id: "vogue_br", name: "Vogue Brasil", url: "https://vogue.globo.com/rss/vogue/", category: "Estilo de Vida", popular: true },
+  { id: "casa_vogue", name: "Casa Vogue", url: "https://casavogue.globo.com/rss/casavogue/", category: "Estilo de Vida" },
+  { id: "gq_br", name: "GQ Brasil", url: "https://gq.globo.com/rss/gq/", category: "Estilo de Vida" },
+  { id: "billboard", name: "Billboard", url: "https://www.billboard.com/feed/", category: "Cultura" }
 ];
 
 const AD_KEYWORDS = ['oferta', 'promoção', 'desconto', 'cupom', 'barato', 'preço', 'comprar', 'imperdível', 'liquidação'];
+
+const FALLBACK_IMAGES = [
+  '/fallbacks/fb_cityscape.png',
+  '/fallbacks/fb_tech.png',
+  '/fallbacks/fb_education.png',
+  '/fallbacks/fb_energy.png'
+];
+
+const getFallbackImage = (articleId) => {
+  // Usa o ID do artigo para sempre retornar a mesma imagem de fallback para o mesmo artigo
+  const index = Math.abs(parseInt(articleId, 36) || 0) % FALLBACK_IMAGES.length;
+  return FALLBACK_IMAGES[index];
+};
 
 const SettingsContext = createContext({});
 const useSettings = () => useContext(SettingsContext);
@@ -188,10 +208,18 @@ const ArticleView = ({ news, lastUpdate }) => {
 
           {article.image && (
             <div className={cn("mb-16", readMode ? "rounded-lg overflow-hidden" : cn("border p-1 shadow-[20px_20px_0px_0px_rgba(0,0,0,1)]", theme.border, theme.boxBg))}>
-              <img src={article.image} className="w-full" alt="" />
+              <img 
+                src={article.image} 
+                className="w-full" 
+                alt="" 
+                onError={(e) => {
+                  e.target.onerror = null; 
+                  e.target.src = getFallbackImage(article.id);
+                }}
+              />
               {!readMode && (
                 <div className="mt-4 flex justify-between items-center px-4 mb-2">
-                  <span className={cn("text-[8px] uppercase font-bold italic", theme.muted)}>Arquivo Digital Gazetta Intelligence</span>
+                  <span className={cn("text-[8px] uppercase font-bold", theme.muted)}>Arquivo Digital Gazetta Intelligence</span>
                 </div>
               )}
             </div>
@@ -216,11 +244,11 @@ const ArticleView = ({ news, lastUpdate }) => {
           )}
 
           {!readMode && (
-            <div className={cn("mt-32 pt-16 border-t-4 text-center italic opacity-40", theme.border)}>
+            <div className={cn("mt-32 pt-16 border-t-4 text-center opacity-40", theme.border)}>
               <Newspaper className="w-16 h-16 mx-auto mb-6" />
-              <p className="mb-2 text-sm font-bold not-italic font-sans uppercase tracking-[0.3em]">Gazetta Digital Intelligence</p>
+              <p className="mb-2 text-sm font-bold font-sans uppercase tracking-[0.3em]">Gazetta Digital Intelligence</p>
               <p>&copy; 2026 — Algoritmo de Consenso Global</p>
-              <a href={article.link} target="_blank" rel="noreferrer" className={cn("text-[10px] uppercase font-black not-italic hover:underline mt-8 block transition-colors", theme.accentHover)}>Verificar Documentação de Origem</a>
+              <a href={article.link} target="_blank" rel="noreferrer" className={cn("text-[10px] uppercase font-black hover:underline mt-8 block transition-colors", theme.accentHover)}>Verificar Documentação de Origem</a>
             </div>
           )}
         </article>
@@ -239,7 +267,7 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
     navigate(`/article/${articleId}`);
   };
 
-  const categories = ["Todas", "Mundo", "Tecnologia", "Negócios", "Geek", "Brasil"];
+  const categories = ["Todas", "Mundo", "Brasil", "Tecnologia", "Negócios", "Esportes", "Cultura", "Ciência", "Estilo de Vida"];
 
   const displayedNews = currentCategory === "Todas" || showBookmarks
     ? (showBookmarks ? bookmarks : news)
@@ -346,7 +374,7 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
               <button
                 key={cat}
                 onClick={() => setCurrentCategory(cat)}
-                className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1 transition-all rounded-full",
+                className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1 transition-all rounded-none",
                   currentCategory === cat ? theme.invertedBg : cn("hover:opacity-70", theme.text)
                 )}
               >
@@ -419,8 +447,8 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                         </div>
                         <h2 onClick={() => openArticle(item.id)} className={cn("text-4xl md:text-6xl font-black leading-[1.05] mb-6 hover:underline cursor-pointer decoration-4", theme.accentDecor)}>{item.title}</h2>
                         <p className={cn("text-xl md:text-2xl leading-snug mb-8 italic first-letter:text-6xl first-letter:font-black first-letter:float-left first-letter:mr-3 first-letter:leading-none", theme.muted, theme.firstLetter)}>{item.summary}</p>
-                        <div className={cn("flex justify-between items-center text-[10px] uppercase font-bold border-t border-dotted pt-6", theme.muted, theme.borderObj)}>
-                          <span className="flex items-center gap-2"><Globe className="w-3 h-3" /> {item.source} • {item.date}</span>
+                        <div className={cn("flex justify-between items-center text-xs uppercase font-bold border-t border-dotted pt-6", theme.muted, theme.borderObj)}>
+                          <span className="flex items-center gap-2"><Globe className="w-4 h-4" /> {item.source} • {item.date}</span>
                           <div className="flex gap-4">
                             <Share2 onClick={() => handleShare(item.title, `${window.location.origin}/article/${item.id}`)} className="w-4 h-4 cursor-pointer hover:scale-110 transition-transform" />
                             <Bookmark onClick={() => toggleBookmark(item)} className={cn("w-4 h-4 cursor-pointer hover:scale-110 transition-transform", isBookmarked(item) && theme.accent, isBookmarked(item) && "fill-current")} />
@@ -430,7 +458,14 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                       {item.image && (
                         <div className="lg:w-5/12 order-1 lg:order-2">
                           <div onClick={() => openArticle(item.id)} className={cn("border p-1 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] group overflow-hidden relative cursor-pointer", theme.border, theme.boxBg)}>
-                            <img src={item.image} className="w-full transition-all duration-1000 group-hover:scale-105" />
+                            <img 
+                              src={item.image} 
+                              className="w-full transition-all duration-1000 group-hover:scale-105" 
+                              onError={(e) => {
+                                e.target.onerror = null; 
+                                e.target.src = getFallbackImage(item.id);
+                              }}
+                            />
                           </div>
                         </div>
                       )}
@@ -446,7 +481,14 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                     >
                       {item.image && (
                         <div onClick={() => openArticle(item.id)} className={cn("mb-6 border p-1 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden h-40 group-hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:translate-x-0.5 group-hover:translate-y-0.5 transition-all", theme.border, theme.boxBg)}>
-                          <img src={item.image} className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105" />
+                          <img 
+                            src={item.image} 
+                            className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105" 
+                            onError={(e) => {
+                              e.target.onerror = null; 
+                              e.target.src = getFallbackImage(item.id);
+                            }}
+                          />
                         </div>
                       )}
                       <div className="flex justify-between items-center mb-3">
@@ -457,11 +499,11 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                         <Bookmark onClick={(e) => { e.stopPropagation(); toggleBookmark(item); }} className={cn("w-3 h-3 hover:scale-125 transition-transform", isBookmarked(item) ? theme.accent : theme.muted, isBookmarked(item) && "fill-current")} />
                       </div>
                       <h3 onClick={() => openArticle(item.id)} className={cn("text-xl md:text-2xl font-black leading-tight mb-4 hover:underline transition-colors uppercase", theme.accentHover)}>{item.title}</h3>
-                      <p onClick={() => openArticle(item.id)} className={cn("text-base leading-relaxed mb-6 flex-grow", theme.muted)}>{item.summary}</p>
-                      <div className={cn("flex justify-between items-center text-[11px] uppercase font-bold pt-3 border-t", theme.muted, theme.borderObj)}>
+                      <p onClick={() => openArticle(item.id)} className={cn("text-lg leading-relaxed mb-6 flex-grow", theme.muted)}>{item.summary}</p>
+                      <div className={cn("flex justify-between items-center text-[12px] uppercase font-bold pt-3 border-t", theme.muted, theme.borderObj)}>
                         <span>{item.source}</span>
                         <div className="flex gap-2 items-center">
-                          <span className="text-[10px]">{item.date}</span>
+                          <span className="text-[11px]">{item.date}</span>
                           <Share2 onClick={(e) => { e.stopPropagation(); handleShare(item.title, `${window.location.origin}/article/${item.id}`); }} className="w-3 h-3 ml-2 hover:scale-110" />
                         </div>
                       </div>
@@ -483,28 +525,28 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                             <span>{t.source}</span>
                             <span className={theme.accent}>ALERT</span>
                           </div>
-                          <p className="text-base font-bold leading-snug group-hover:underline italic">"{t.title}"</p>
+                          <p className="text-base font-bold leading-snug group-hover:underline">"{t.title}"</p>
                         </div>
                       ))}
                     </div>
                   </section>
 
-                  <section className={cn("p-6 shadow-[12px_12px_0px_0px_rgba(0,0,0,0.1)]", theme.invertedBg)}>
-                    <h4 className="text-[11px] uppercase font-black tracking-widest mb-6 border-b border-white/20 pb-4">Análise IA: DNA</h4>
+                  <section className={cn("border-2 p-6 relative", theme.border, theme.boxBg)}>
+                    <h4 className={cn("text-[11px] uppercase font-black tracking-widest mb-6 border-b-2 pb-4", theme.border)}>Análise IA: DNA</h4>
                     <div className="space-y-5">
                       {interests.slice(0, 4).map(i => (
                         <div key={i} className="space-y-1">
-                          <div className="flex justify-between text-[10px] font-bold uppercase">
+                          <div className={cn("flex justify-between text-[10px] font-bold uppercase", theme.text)}>
                             <span>{i}</span>
-                            <span className="text-red-500">{(Math.random() * 20 + 75).toFixed(0)}%</span>
+                            <span className={theme.accent}>{(Math.random() * 20 + 75).toFixed(0)}%</span>
                           </div>
-                          <div className="h-1 bg-white/10 w-full overflow-hidden">
+                          <div className={cn("h-1 w-full overflow-hidden", darkMode ? "bg-white/10" : "bg-black/10")}>
                             <motion.div initial={{ width: 0 }} animate={{ width: `${Math.floor(Math.random() * 40 + 60)}%` }} className={cn("h-full", theme.bgAccent)} />
                           </div>
                         </div>
                       ))}
                     </div>
-                    <button className={cn("w-full mt-8 border py-2 text-[10px] uppercase font-black transition-all", darkMode ? "border-black/30 hover:bg-black hover:text-white" : "border-white/30 hover:bg-white hover:text-black")}>Ver Relatório Completo</button>
+                    <button className={cn("w-full mt-8 border-2 py-2 text-[10px] uppercase font-black transition-all", theme.border, theme.accentHover)}>Ver Relatório Completo</button>
                   </section>
                 </aside>
               )}
@@ -604,15 +646,15 @@ const AppContent = () => {
               <button onClick={() => setShowSettings(false)} className="absolute top-6 right-6 hover:rotate-90 transition-transform"><X className="w-8 h-8" /></button>
               <div className="flex items-center gap-4 mb-4">
                 <EditorSeal className="w-20 h-20" />
-                <h2 className="font-serif text-5xl font-bold italic border-b-2 border-black/10 pb-2 mb-2">Minha Gazetta</h2>
+                <h2 className="font-serif text-5xl font-bold border-b-2 border-black/10 pb-2 mb-2">Minha Gazetta</h2>
               </div>
-              <p className={cn("mb-6 italic", theme.muted)}>Selecione os focos de análise e as fontes que compõem sua edição diária.</p>
+              <p className={cn("mb-6", theme.muted)}>Selecione os focos de análise e as fontes que compõem sua edição diária.</p>
               
               <h3 className="text-xs font-black uppercase bg-black text-white px-2 py-1 mb-4 inline-block">Interesses</h3>
               <div className="flex flex-wrap gap-2 mb-8">
                 {[
-                  "Inteligência Artificial", "Cultura Geek", "Economia Digital",
-                  "Tecnologia", "Política Global", "Saúde", "Ciência"
+                  "Inteligência Artificial", "Cultura & Arte", "Economia Digital",
+                  "Tecnologia", "Política Global", "Saúde & Bem-estar", "Esportes", "Ciência", "Moda & Estilo"
                 ].map(th => (
                   <button key={th} onClick={() => toggleInterest(th)} className={cn("px-4 py-2 text-[10px] font-black uppercase border-2 transition-all border-neutral-300", interests.includes(th) ? "border-black text-red-600 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" : cn("border-black/20 hover:border-black", darkMode && "border-white/20 hover:border-white", theme.text))}>{th}</button>
                 ))}
@@ -694,7 +736,7 @@ const analyzeTrends = (allArticles) => {
 };
 
 const App = () => {
-  const [interests, setInterests] = useState(() => JSON.parse(localStorage.getItem('gazetta_prefs')) || ["Inteligência Artificial", "Cultura Geek", "Economia Digital"]);
+  const [interests, setInterests] = useState(() => JSON.parse(localStorage.getItem('gazetta_prefs')) || ["Inteligência Artificial", "Cultura & Arte", "Economia Digital", "Esportes"]);
   const [selectedSourceIds, setSelectedSourceIds] = useState(() => JSON.parse(localStorage.getItem('gazetta_sources')) || GLOBAL_SOURCES.filter(s => s.popular).map(s => s.id));
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('gazetta_theme') === 'dark');
   const [bookmarks, setBookmarks] = useState(() => JSON.parse(localStorage.getItem('gazetta_bookmarks')) || []);
@@ -860,10 +902,17 @@ const App = () => {
               return data.items.map(item => {
                 let imageUrl = item.enclosure?.link || item.thumbnail || "";
 
-                if (!imageUrl || imageUrl.includes("feedburner")) {
+                if (!imageUrl || imageUrl.includes("feedburner") || imageUrl.toLowerCase().includes("banner") || imageUrl.toLowerCase().includes("assine")) {
                   const htmlContent = (item.description || "") + (item.content || "");
                   const imgMatch = htmlContent.match(/<img[^>]+src="([^">]+)"/);
-                  if (imgMatch && imgMatch[1]) imageUrl = imgMatch[1];
+                  if (imgMatch && imgMatch[1]) {
+                    const foundImg = imgMatch[1];
+                    if (!foundImg.toLowerCase().includes("banner") && !foundImg.toLowerCase().includes("assine")) {
+                      imageUrl = foundImg;
+                    } else {
+                      imageUrl = "";
+                    }
+                  }
                 }
 
                 const generateId = (str) => {
@@ -961,10 +1010,17 @@ const App = () => {
 
           const items = data.items.map(item => {
             let imageUrl = item.enclosure?.link || item.thumbnail || "";
-            if (!imageUrl || imageUrl.includes("feedburner")) {
+            if (!imageUrl || imageUrl.includes("feedburner") || imageUrl.toLowerCase().includes("banner") || imageUrl.toLowerCase().includes("assine")) {
               const htmlContent = (item.description || "") + (item.content || "");
               const imgMatch = htmlContent.match(/<img[^>]+src="([^">]+)"/);
-              if (imgMatch && imgMatch[1]) imageUrl = imgMatch[1];
+              if (imgMatch && imgMatch[1]) {
+                const foundImg = imgMatch[1];
+                if (!foundImg.toLowerCase().includes("banner") && !foundImg.toLowerCase().includes("assine")) {
+                  imageUrl = foundImg;
+                } else {
+                  imageUrl = "";
+                }
+              }
             }
 
             const generateId = (str) => {
