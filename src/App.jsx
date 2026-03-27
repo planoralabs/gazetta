@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useContext, createContext, useCallback } from 'react';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { Settings, Sparkles, RefreshCw, Newspaper, TrendingUp, Calendar, Share2, Bookmark, X, ArrowLeft, User, Globe, Zap, Moon, Sun, BookOpen, LogIn, LogOut, Search, Award, ChevronDown } from 'lucide-react';
-import { auth, googleProvider, db } from './lib/firebase';
+import { analytics, auth, googleProvider, db } from './lib/firebase';
+import { logEvent } from "firebase/analytics";
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -295,6 +296,14 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
   const { theme, toggleBookmark, isBookmarked, handleShare, interests, currentCategory, setCurrentCategory, toggleTheme, darkMode, bookmarks, showBookmarks, setShowBookmarks, user, login, logout, collectibles } = useSettings();
 
   const openArticle = (articleId) => {
+    const article = [...news, ...bookmarks].find(n => n.id === articleId);
+    if (article && analytics) {
+      logEvent(analytics, 'select_content', {
+        content_type: 'article',
+        item_id: articleId,
+        item_name: article.title
+      });
+    }
     navigate(`/article/${articleId}`);
   };
 
@@ -303,6 +312,16 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
   const displayedNews = currentCategory === "Todas" || showBookmarks
     ? (showBookmarks ? bookmarks : news)
     : news.filter(n => n.category.toLowerCase().includes(currentCategory.toLowerCase()));
+
+  useEffect(() => {
+    if (analytics) {
+      logEvent(analytics, 'page_view', {
+        page_title: currentCategory,
+        page_location: window.location.href,
+        page_path: window.location.pathname
+      });
+    }
+  }, [currentCategory, analytics]);
 
   return (
     <>
