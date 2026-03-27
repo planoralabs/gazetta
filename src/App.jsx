@@ -27,6 +27,22 @@ const decodeEntities = (text) => {
   }
 };
 
+const updateMetaTags = (title, description, image) => {
+  document.title = title || "Gazetta | O Seu Jornal Inteligente";
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) metaDesc.setAttribute('content', description || "Notícias curadas por IA.");
+  
+  // Open Graph Social Media
+  const ogTitle = document.querySelector('meta[property="og:title"]');
+  if (ogTitle) ogTitle.setAttribute('content', title);
+  
+  const ogDesc = document.querySelector('meta[property="og:description"]');
+  if (ogDesc) ogDesc.setAttribute('content', description);
+
+  const ogImg = document.querySelector('meta[property="og:image"]');
+  if (ogImg) ogImg.setAttribute('content', image || "/fallbacks/gazetta.png");
+};
+
 const fixEncoding = (text) => {
   if (!text) return "";
   // Resolve problemas comuns de caracteres corrompidos vindos de RSS antigos
@@ -314,6 +330,12 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
     : news.filter(n => n.category.toLowerCase().includes(currentCategory.toLowerCase()));
 
   useEffect(() => {
+    updateMetaTags(
+      currentCategory === "Todas" ? "Gazetta | O Seu Jornal Inteligente" : `${currentCategory} | Gazetta`,
+      `Últimas notícias da editoria de ${currentCategory} na Gazetta.`,
+      "/fallbacks/gazetta.png"
+    );
+
     if (analytics) {
       logEvent(analytics, 'page_view', {
         page_title: currentCategory,
@@ -510,6 +532,7 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                           <img 
                             src={item.image || getFallbackImage(item.id)} 
                             className="w-full transition-all duration-1000 group-hover:scale-105" 
+                            loading="eager"
                             onError={(e) => {
                               e.target.onerror = null; 
                               e.target.src = getFallbackImage(item.id);
@@ -531,6 +554,7 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                         <img 
                           src={item.image || getFallbackImage(item.id)} 
                           className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105" 
+                          loading="lazy"
                           onError={(e) => {
                             e.target.onerror = null; 
                             e.target.src = getFallbackImage(item.id);
@@ -881,15 +905,21 @@ const App = () => {
   const isBookmarked = (article) => !!bookmarks.find(b => b.id === article.id);
 
   const handleShare = async (title, url) => {
+    const shareData = {
+      title: `Gazetta: ${title}`,
+      text: `Confira esta notícia na Gazetta:`,
+      url: url
+    };
+    
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Gazetta: ${title}`, url });
+        await navigator.share(shareData);
       } catch (err) {
-        console.log('Compartilhamento cancelado');
+        navigator.clipboard.writeText(url);
       }
     } else {
       navigator.clipboard.writeText(url);
-      alert('Link copiado!');
+      alert('Link copiado para a área de transferência!');
     }
   };
 
