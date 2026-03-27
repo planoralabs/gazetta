@@ -108,10 +108,13 @@ const GLOBAL_SOURCES = [
 const AD_KEYWORDS = ['oferta', 'promoção', 'desconto', 'cupom', 'barato', 'preço', 'comprar', 'imperdível', 'liquidação'];
 
 const FALLBACK_IMAGES = [
-  '/fallbacks/fb_cityscape.png',
-  '/fallbacks/fb_tech.png',
-  '/fallbacks/fb_education.png',
-  '/fallbacks/fb_energy.png'
+  '/fallbacks/fallback2.png',
+  '/fallbacks/fallback3.png',
+  '/fallbacks/fallback4.png',
+  '/fallbacks/fallback5.png',
+  '/fallbacks/fallback6.png',
+  '/fallbacks/globe.png',
+  '/fallbacks/gazetta.png'
 ];
 
 const getFallbackImage = (articleId) => {
@@ -455,20 +458,18 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                           </div>
                         </div>
                       </div>
-                      {item.image && (
-                        <div className="lg:w-5/12 order-1 lg:order-2">
-                          <div onClick={() => openArticle(item.id)} className={cn("border p-1 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] group overflow-hidden relative cursor-pointer", theme.border, theme.boxBg)}>
-                            <img 
-                              src={item.image} 
-                              className="w-full transition-all duration-1000 group-hover:scale-105" 
-                              onError={(e) => {
-                                e.target.onerror = null; 
-                                e.target.src = getFallbackImage(item.id);
-                              }}
-                            />
-                          </div>
+                      <div className="lg:w-5/12 order-1 lg:order-2">
+                        <div onClick={() => openArticle(item.id)} className={cn("border p-1 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] group overflow-hidden relative cursor-pointer", theme.border, theme.boxBg)}>
+                          <img 
+                            src={item.image || getFallbackImage(item.id)} 
+                            className="w-full transition-all duration-1000 group-hover:scale-105" 
+                            onError={(e) => {
+                              e.target.onerror = null; 
+                              e.target.src = getFallbackImage(item.id);
+                            }}
+                          />
                         </div>
-                      )}
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -479,18 +480,16 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
                       key={item.id}
                       className="flex flex-col group cursor-pointer"
                     >
-                      {item.image && (
-                        <div onClick={() => openArticle(item.id)} className={cn("mb-6 border p-1 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden h-40 group-hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:translate-x-0.5 group-hover:translate-y-0.5 transition-all", theme.border, theme.boxBg)}>
-                          <img 
-                            src={item.image} 
-                            className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105" 
-                            onError={(e) => {
-                              e.target.onerror = null; 
-                              e.target.src = getFallbackImage(item.id);
-                            }}
-                          />
-                        </div>
-                      )}
+                      <div onClick={() => openArticle(item.id)} className={cn("mb-6 border p-1 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden h-40 group-hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:translate-x-0.5 group-hover:translate-y-0.5 transition-all", theme.border, theme.boxBg)}>
+                        <img 
+                          src={item.image || getFallbackImage(item.id)} 
+                          className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105" 
+                          onError={(e) => {
+                            e.target.onerror = null; 
+                            e.target.src = getFallbackImage(item.id);
+                          }}
+                        />
+                      </div>
                       <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center gap-2 flex-grow pr-4">
                           <span className={cn("text-[10px] font-black uppercase tracking-tighter", theme.accent)}>{item.category}</span>
