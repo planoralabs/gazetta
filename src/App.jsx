@@ -309,12 +309,12 @@ const NewsList = ({ news, isLoading, lastUpdate, showSettings, setShowSettings, 
       <header className="max-w-7xl mx-auto px-4 md:px-12 pt-8 pb-4">
         {/* Topbar Utility */}
         <div className={cn("flex flex-col md:flex-row justify-between items-center mb-6 border-b pb-2 text-[10px] md:text-xs uppercase tracking-[0.2em] font-bold", theme.border)}>
-          <div className="flex items-center gap-4 mb-2 md:mb-0">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-2 mb-2 md:mb-0">
             <span className={cn("flex items-center gap-2", theme.accent)}><Globe className="w-3 h-3" /> Notícias do mundo todo</span>
-            <span className="hidden md:inline">|</span>
-            <span className="flex items-center gap-1">
+            <span className="hidden md:inline opacity-30">|</span>
+            <span className="flex items-center gap-1 opacity-70">
               <Calendar className="w-3 h-3" />
-              {lastUpdate.toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              {lastUpdate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
           </div>
           <div className="flex items-center gap-4">
